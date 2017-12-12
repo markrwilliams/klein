@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals, absolute_import
 
 from twisted.web.template import tags, slot
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks, returnValue, Deferred, succeed
 
 from klein import Klein, Plating, form
 from klein.interfaces import (
@@ -146,17 +146,36 @@ def auth_for_reading(metadata, datastore, session_store, transaction,
                        metadata.tables["account"])
 
 
+class CachedResult(object):
+    _MISSING = "_MISSING"
+
+    def __init__(self, deferred):
+        self._waiting = []
+        self._result = self._MISSING
+        self._deferred = deferred.addCallback(self._setResult)
+
+    def _setResult(self, result):
+        self._result = result
+        waiting, self._waiting = self._waiting, []
+        for d in waiting:
+            d.callback(result)
+
+    def notifyResult(self):
+        if self._result is self._MISSING:
+            self._waiting.append(Deferred())
+            return self._waiting[-1]
+        return succeed(self._result)
+
+
 from twisted.internet import reactor
-getproc = openSessionStore(reactor, "sqlite:///sessions.sqlite",
-                             [authorize_chirper.authorizer,
-                              auth_for_reading.authorizer])
-@getproc.addCallback
-def set_procurer(opened_procurer):
-    global procurer
-    procurer = opened_procurer
+procurerProxy = CachedResult(
+    openSessionStore(reactor, "sqlite:///sessions.sqlite",
+                     [authorize_chirper.authorizer,
+                      auth_for_reading.authorizer]))
+
 
 from klein._session import requirer, Optional
-authorized = requirer(lambda: procurer)
+authorized = requirer(procurerProxy.notifyResult)
 
 logout = form().authorized_using(authorized)
 

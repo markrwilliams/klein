@@ -163,7 +163,7 @@ def requirer(procure_procurer):
             @inlineCallbacks
             def routed(instance, request, *args, **kwargs):
                 newkw = kwargs.copy()
-                procu = _call(instance, procure_procurer)
+                procu = yield _call(instance, procure_procurer)
                 session = yield (
                     procu.procureSession(request, alwaysCreate=any_required)
                 )
