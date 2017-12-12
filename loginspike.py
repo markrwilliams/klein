@@ -146,36 +146,15 @@ def auth_for_reading(metadata, datastore, session_store, transaction,
                        metadata.tables["account"])
 
 
-class CachedResult(object):
-    _MISSING = "_MISSING"
-
-    def __init__(self, deferred):
-        self._waiting = []
-        self._result = self._MISSING
-        self._deferred = deferred.addCallback(self._setResult)
-
-    def _setResult(self, result):
-        self._result = result
-        waiting, self._waiting = self._waiting, []
-        for d in waiting:
-            d.callback(result)
-
-    def notifyResult(self):
-        if self._result is self._MISSING:
-            self._waiting.append(Deferred())
-            return self._waiting[-1]
-        return succeed(self._result)
-
 
 from twisted.internet import reactor
-procurerProxy = CachedResult(
-    openSessionStore(reactor, "sqlite:///sessions.sqlite",
+procurer = openSessionStore(reactor, "sqlite:///sessions.sqlite",
                      [authorize_chirper.authorizer,
-                      auth_for_reading.authorizer]))
+                      auth_for_reading.authorizer])
 
 
 from klein._session import requirer, Optional
-authorized = requirer(procurerProxy.notifyResult)
+authorized = requirer(lambda: procurer)
 
 logout = form().authorized_using(authorized)
 

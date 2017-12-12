@@ -185,7 +185,7 @@ class AlchimiaDataStore(object):
         )
         components.extend(creator(metadata, self)
                           for creator in component_creators)
-        return self._populate_schema().addCallback(lambda ignored: self)
+        return self
 
 
     def _populate_schema(self):
@@ -687,7 +687,7 @@ def openSessionStore(reactor, db_uri, component_creators=(),
 
     @return: L{Deferred} firing with L{ISessionProcurer}
     """
-    opened = AlchimiaDataStore.open(
+    datastore = AlchimiaDataStore.open(
         reactor, db_uri, [
             AlchimiaSessionStore, AccountBindingStorePlugin,
             lambda metadata, store: IPTrackingProcurer(
@@ -696,11 +696,8 @@ def openSessionStore(reactor, db_uri, component_creators=(),
                 ))),
             AccountLoginAuthorizer,
         ] + list(component_creators)
-    ).addCallback
-    @opened
-    def procurify(datastore):
-        return next(datastore.componentsProviding(ISessionProcurer))
-    return procurify
+    )
+    return next(datastore.componentsProviding(ISessionProcurer))
 
 
 
